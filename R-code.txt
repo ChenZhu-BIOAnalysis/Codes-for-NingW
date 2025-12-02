@@ -1,0 +1,338 @@
+Fig.1
+setwd("D:/nW/论文/小论文2/network_R/箱线图")
+
+library(ggplot2)
+library(RColorBrewer)
+library(ggsci)
+library(ggpubr)
+library(tidyverse)
+library(agricolae)
+library(reshape2)
+
+df <- read.csv("network_env.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+df$Vegetationtype <- factor(df$Vegetationtype,levels=c("TD","TS","TMS","MM","AM"))#确定横坐标
+list=list(c("TD","TS"),c("TD","TMS"),c("TD","MM"),c("TD","MM"),
+          c("TS","TMS"),c("TS","MM"),c("TS","AM"),
+          c("TMS","MM"),c("TMS","AM"),
+          c("MM","AM"))
+# 方差分析
+variance<-aov(BR ~ Vegetationtype, data=df)
+summary(variance)
+# 进行多重比较
+MC <- LSD.test(variance, 'Vegetationtype', p.adj = 'bonferroni')
+print(MC$groups)
+
+# 标记字母法数据准备
+mark <- data.frame(MC$groups)
+mark$group = row.names(mark)
+head(mark)
+
+#箱线图
+p1=ggplot(df, aes(x=Vegetationtype, y=BR,color=Vegetationtype))+
+  geom_jitter(size = 2.5,alpha = 0.6,width = 0.2)+ 
+  geom_boxplot(aes(),notch = F,size=0.7,alpha=0.2)+
+  geom_text(data=mark,
+            aes(x=group,y=BR+200,label=groups),
+            color="black",
+            size = 5,
+            fontface="bold")+#添加字母标记
+  theme_bw()+scale_color_npg()+scale_fill_npg()+
+  #scale_y_continuous(limits=c(0,800))+#改范围
+  theme(axis.text=element_text(colour='black',size=9))+
+  #stat_compare_means(comparisons=list,method="wilcox.test",size=4,label = "p.signif")+#非配对的非正态分布数据，非参数检验
+  labs(x="Vegetationtype", y="BR", color = "Vegetationtype",fill = "Vegetationtype")+
+  theme(strip.background = element_rect(fill=c("white")))+
+  theme(strip.text = element_text(size = 12,face = 'bold',colour = "gray2"))+
+  theme(axis.text=element_text(colour='black',size=11))
+
+ggsave("BR_Vegetationtype.pdf",p1,width=6,height=6)
+Fig.2
+setwd("D:/nW/论文/小论文2/network_R/堆积图")
+#跟着ISME学画图:不同处理物种组成和随机森林驱动因子的分析组合图
+#作图所需安装R包
+library(ggplot2)
+library(reshape2)
+library(ggalluvial)
+library(vegan)
+library(ggsci)
+####相对丰度计算
+## 物种组成数据
+#spetax <- read.table("spetax_fun.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+## 将物种分类单元注释信息与丰度数据分开
+#spe <- spetax[-c(1:6)]
+#tax <- spetax[1:6]
+#head(spe)
+#head(tax)
+# 2.2.1 需要先计算相对丰度
+spe <- read.csv("Fun_spetax_phy.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+rel_spe <- sweep(spe,2,colSums(spe),'/')*100
+#head(rel_spe)
+write.csv(rel_spe, 'Fun_rel_spetax.csv')  
+
+
+#构建绘图长数据框和颜色设置，通过reshape::melt转为长数据
+aa <- read.csv("Fun_rel_spetax.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+tax<-cbind(rownames(aa),aa)
+dat <- reshape::melt(tax, id = 'rownames(aa)')
+write.csv(dat, 'Fun_rel_all.csv') 
+#手动加分组
+#dat<-cbind(dat,Group)
+#colnames(dat)[1]<-"Tax"
+
+
+#################################################################################
+dat <- read.csv("Bac_rel_9.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+dat$variable <- factor(dat$variable,levels=c("TD","TS","TMS","MM","AM"))#确定横坐标
+
+#绘图，添加堆积柱状图，factet作为处理注释，用前丰富度前9的
+p1=ggplot(dat, aes(x =variable, y = value, 
+                   fill =Tax,stratum =Tax, alluvium =Tax))+ 
+  geom_stratum(width = 0.8,alpha=1,color="white") +geom_flow(alpha = 0.01)+ 
+  scale_fill_npg()+###颜色
+  theme(axis.text=element_text(colour='black',size=9))+
+  labs(x = '', y = 'Relative abundance',fill=" ")+theme_bw()+
+  labs(title = "Live Mirobes")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(axis.text=element_text(colour='black',size=11))+
+  theme(legend.position = "bottom") +
+  theme(strip.text = element_text(size = 12,colour = "gray2"))+
+  facet_grid(~Group, drop=TRUE,scale="free",space="free_x")
+
+ggsave("堆积图_Bac_rel.pdf",p1,width=8,height=8)
+#####################################################
+dat <- read.csv("Fun_rel_all.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+dat$variable <- factor(dat$variable,levels=c("TD","TS","TMS","MM","AM"))#确定横坐标
+
+p2=ggplot(dat, aes(x =variable, y = value, 
+                   fill =Tax,stratum =Tax, alluvium =Tax)) +
+  geom_stratum(width = 0.8,alpha=1,color="white") +geom_flow(alpha = 0.01) + 
+  #scale_fill_npg()+###颜色
+  #scale_fill_jco()+###颜色
+  scale_fill_aaas()+###颜色
+  theme(axis.text=element_text(colour='black',size=9))+
+  labs(x = '', y = 'Relative abundance',fill=" ")+theme_bw()+
+  labs(title = "Total Mirobes")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(axis.text=element_text(colour='black',size=11))+
+  theme(legend.position = "bottom") +
+  annotate('text', label = 'a', x =1, y =25.50, angle=0, size =6,color="white")+
+  annotate('text', label = 'a', x =2, y =23.50, angle=0, size =6,color="white")+
+  annotate('text', label = 'a', x =3, y =22.50, angle=0, size =6,color="white")+
+  theme(strip.text = element_text(size = 12,colour = "gray2"))+
+  facet_grid(~Group, drop=TRUE,scale="free",space="free_x")
+
+ggsave("堆积图_Fun_rel.pdf",p2,width=8,height=8)
+######随机森林寻找显著因子
+library(randomForest)
+library(rfPermute)
+library(ggplot2)
+#链接：https://pan.baidu.com/s/177hQzQXo8B3kr4JYEzbQfA 提取码：qhs0、
+#构建回归分析数据框示例
+#链接：https://pan.baidu.com/s/1NnBquWKGp1cMH2HZXGw-jA 提取码：hayq
+design<-read.csv("D://test/test_design.csv",row.names = 1)
+df1<-design[,3:11]
+#设置随机种子，使结果能够重现
+set.seed(1234)
+rf_results<-rfPermute(df1$N.fixation~., data =df1, importance = TRUE, ntree = 800,  num.cores = 15)
+rf_results
+#提取预测因子的解释率
+predictor_var<- data.frame(importance(rf_results, scale = TRUE), check.names = FALSE)
+#提取预测变量的显著
+predictor_sig<-as.data.frame((rf_results$pval)[,,2])
+colnames(predictor_sig)<-c("sig","other")
+#合并显著因子和解释率表
+df_pre<-cbind(predictor_var,predictor_sig)
+df_pre$sig[df_pre$sig<=0.05 & df_pre$sig>=0.01]<-"*"
+df_pre$sig[df_pre$sig<=0.01 & df_pre$sig>=0.001]<-"**"
+df_pre$sig[df_pre$sig>=0.05]<-" "
+#设置显著因子的颜色
+df_pre$IncNodePurity[df_pre$sig=="*"]<-"#366A99" 
+df_pre$IncNodePurity[df_pre$sig=="**"]<-"#366A99" 
+#设置不显著因子的颜色
+df_pre$IncNodePurity[df_pre$sig==" "]<-"gray40"
+df_pre<-df_pre[order(df_pre$`%IncMSE`,decreasing=T),]
+#绘制柱状图
+ID<-as.data.frame(c(1:8))
+df_pre<-cbind(df_pre,ID)
+Group<-as.data.frame(c(rep("Live Microbes",8)))
+colnames(Group)<-"Group"
+df_pre<-cbind(df_pre,Group)
+#绘图
+p3=ggplot(data=df_pre,aes(x=reorder(rownames(df_pre),df_pre$`c(1:8)`),y=df_pre$`%IncMSE`))+
+  geom_bar(stat = 'identity',width=0.8,fill=df_pre$IncNodePurity)+
+  theme_bw()+ labs(x='',y='Increase in MSE (%)')+
+  geom_text(aes(label = df_pre$sig,y= df_pre$`%IncMSE`+0.28, x=rownames(df_pre)),vjust = 0.75,size = 9)+
+  theme_bw(base_line_size = 1.05,base_rect_size =1.05)+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  facet_grid(~Group, drop=TRUE,scale="free",space="free_x")+
+  theme(axis.text = element_text(color = "black",size = 11))
+
+#设置随机种子，使结果能够重现
+set.seed(1234)
+rf_results<-rfPermute(df1$N.fixation~., data =df1, importance = TRUE, ntree = 800,  num.cores = 15)
+rf_results
+#提取预测因子的解释率
+predictor_var<- data.frame(importance(rf_results, scale = TRUE), check.names = FALSE)
+#提取预测变量的显著
+predictor_sig<-as.data.frame((rf_results$pval)[,,2])
+colnames(predictor_sig)<-c("sig","other")
+#合并显著因子和解释率表
+df_pre<-cbind(predictor_var,predictor_sig)
+df_pre$sig[df_pre$sig<=0.05 & df_pre$sig>=0.01]<-"*"
+df_pre$sig[df_pre$sig<=0.01 & df_pre$sig>=0.001]<-"**"
+df_pre$sig[df_pre$sig>=0.05]<-" "
+#设置显著因子的颜色
+df_pre$IncNodePurity[df_pre$sig=="*"]<-"#366A99" 
+df_pre$IncNodePurity[df_pre$sig=="**"]<-"#366A99" 
+#设置不显著因子的颜色
+df_pre$IncNodePurity[df_pre$sig==" "]<-"gray40"
+df_pre<-df_pre[order(df_pre$`%IncMSE`,decreasing=T),]
+#绘制柱状图
+ID<-as.data.frame(c(1:8))
+df_pre<-cbind(df_pre,ID)
+Group<-as.data.frame(c(rep("Total Microbes",8)))
+colnames(Group)<-"Group"
+df_pre<-cbind(df_pre,Group)
+#绘图
+p4=ggplot(data=df_pre,aes(x=reorder(rownames(df_pre),df_pre$`c(1:8)`),y=df_pre$`%IncMSE`))+
+  geom_bar(stat = 'identity',width=0.8,fill=df_pre$IncNodePurity)+
+  theme_bw()+ labs(x='',y='Increase in MSE (%)')+
+  geom_text(aes(label = df_pre$sig,y= df_pre$`%IncMSE`+0.28, x=rownames(df_pre)),vjust = 0.75,size = 9)+
+  theme_bw(base_line_size = 1.05,base_rect_size =1.05)+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  facet_grid(~Group, drop=TRUE,scale="free",space="free_x")+
+  theme(axis.text = element_text(color = "black",size = 11))
+#拼图
+library(cowplot)
+plot_grid(p1, p2, p3, p4,  ncol = 2,  align="v", axis = "lr")
+Fig.3
+setwd("D:/nW/论文/小论文2/network_R/横向堆积图")
+
+# stackbarplot
+library(scales)
+library(ggplot2)
+library(RColorBrewer)
+library(reshape2)
+library(ggalluvial)
+library(vegan)
+library(ggsci)
+mydata <- read.csv("0.6_0.8_Node_all.csv", header=T, row.names=1, sep=",", comment.char="",stringsAsFactors = TRUE,quote = "")
+
+p1 <- ggplot(mydata, aes(x = type, fill = Phylum)) +
+  geom_bar(width = 0.9, position = "fill")+  # 百分比柱状图'Ascomycota'"#385081"'Basidiomycota',"#B78881",'Zygomycota', "#2C7583",'Glomeromycota',"#FF7900",
+  scale_fill_manual(values = c("#D94934","#42B0C8", "#239880","#E9967C",
+                               "#818DAD","#8DC9BA","#CE151C","#795E46","#CCCCCC","#9B7482",
+                               "#CA8A34","#FF64BB","#A119BD","#45A804","#4F13BD","#030108",
+                               "#E8867D","#385081","#B78881","#2C7583","#FF7900"), 
+                     limits = c('Actinobacteria', 'Proteobacteria', 'Acidobacteria', 
+                                'Unclassified_Bac','Verrucomicrobia','Bacteroidetes','Gemmatimonadetes','Chloroflexi',
+                                'Planctomycetes','Firmicutes','Nitrospirae',
+                                'Latescibacteria','Candidatus Saccharibacteria','Cyanobacteria',
+                                'Armatimonadetes',' Deinococcus-Thermus',
+                                'Unclassified_Fun','Ascomycota','Basidiomycota','Zygomycota','Glomeromycota'))+
+  scale_y_continuous(labels = percent) +
+  labs(title = " ",
+       y = "Frequency of patients")+
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.background = element_blank(),
+        axis.text.y = element_text(size = 14,face="bold"),
+        axis.text.x = element_text(size = 14,face="bold"),
+        axis.title.x = element_text(size = 16,face="bold"),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank())+
+  coord_flip()
+
+ggsave("BF_node_phy_0.6_0.8.pdf",p1,width=14,height=4)
+
+setwd("D:/nW/论文/小论文2/network_R/Zi_Pi")
+##计算模块内连通度（Zi）和模块间连通度（Pi）
+library(ggplot2)
+library(reshape2)
+library(ggalluvial)
+library(vegan)
+library(ggsci)
+zi_pi <- read.csv("BF/AM_node0.8.csv", header=T, row.names=1, sep=",")
+p<-ggplot(zi_pi, aes(Pi, Zi)) +
+  #ggplot(zi_pi, aes(among_module_connectivities, within_module_connectivities)) +
+  geom_point(aes(color =type), alpha = 0.6, size = 3,shape=17)+
+  scale_y_continuous(limits=c(-1,6.3))+#改范围
+  #scale_fill_npg()+###颜色
+  scale_color_manual(values = c("#443B84FF","#20A486FF","#FDE725FF", "#2C738EFF"), 
+                     limits = c('Peripheral species', 'Connector hubs', 'Module hubs', 'Network hubs'))+
+  theme(panel.grid = element_blank(), axis.line = element_line(colour = 'black'), 
+        panel.background = element_blank(), legend.key = element_blank()) +
+  labs(x = 'Among-module connectivities', y = 'Within-module connectivities', color = '')+ 
+  geom_vline(xintercept = 0.62,linetype=2,linewidth=1) +
+  geom_hline(yintercept = 2.5,linetype=2,linewidth=1)+  
+  theme_bw()+
+  theme(axis.ticks.length=unit(-0.25, "cm"), 
+        axis.text.x = element_text(margin=unit(c(0.5,0.5,0.5,0.5), "cm")), 
+        axis.text.y = element_text(margin=unit(c(0.5,0.5,0.5,0.5), "cm")) )
+
+ggsave("Zi_Pi_BF_all2.pdf",p,width=12,height=4)
+
+#################################################################################
+zi_pi <- read.csv("BF/0.6_node_all.csv", header=T, row.names=1, sep=",")
+p<-#ggplot(zi_pi, aes(Pi, Zi)) +
+  ggplot(zi_pi, aes(Pi,Zi))+#（多个草地类型合并一个图）
+  #ggplot(zi_pi, aes(among_module_connectivities, within_module_connectivities)) +
+  geom_point(aes(shape=type,color =Network_roles), alpha = 0.6, size = 1.5)+
+  scale_shape_manual(values = c(1, 19, 17,8,6))+
+  scale_y_continuous(limits=c(-1.1,7.3))+#改范围BF(-1,6.3),Fun(-3,3.3)
+  #scale_fill_npg()+###颜色
+  scale_color_manual(values = c("#443B84FF","#20A486FF","#FDE725FF", "#2C738EFF"), 
+                     limits = c('Peripheral species', 'Connector hubs', 'Module hubs', 'Network hubs'))+
+  theme(panel.grid = element_blank(), axis.line = element_line(colour = 'black'), 
+        panel.background = element_blank(), legend.key = element_blank()) +
+  labs(x = 'Among-module connectivities', y = 'Within-module connectivities', color = '')+ 
+  geom_vline(xintercept = 0.62,linetype=2,linewidth=1) +
+  geom_hline(yintercept = 2.5,linetype=2,linewidth=1)+  
+  theme_bw()+
+  theme(axis.ticks.length=unit(-0.25, "cm"), 
+        axis.text.x = element_text(margin=unit(c(0.5,0.5,0.5,0.5), "cm")), 
+        axis.text.y = element_text(margin=unit(c(0.5,0.5,0.5,0.5), "cm")) )
+
+ggsave("1Zi_Pi_BF_all0.6——.pdf",p,width=12,height=3)
+Fig.4
+library(foreign)
+library(VGAM)
+library(ISLR)
+library(splines)
+library(gam)
+library(mgcv)
+library(ggplot2)
+library(Hmisc)
+library(rms)
+library(caret)
+library(SiZer)
+library(RVAideMemoire)
+library(piecewiseSEM)
+library(ggpmisc)
+library(ggarrange)
+library(pbkrtest)
+library(car)
+library(gridExtra)
+library(reshape)
+library(doSNOW)
+library(parallel)
+library(jsonlite)
+library(MASS)
+library(dplyr)
+library(snow)
+library(ggpubr)
+setwd("D:/nW/论文/小论文2/network_R/lm")
+set = read.table("phy_αdiversity.txt", header=T, row.names=1, sep="\t")#AI_EMF
+set = read.table("0.6_network_complex.txt", header=T, row.names=1, sep="\t")#AI_EMF
+#family=c(binomial、link二项分布,Gaussian,gamma,inverse,poisson,quasi)# 分布族 z value标准正态分布统计量
+##################################
+p1=ggplot(set,aes(x=log(PSR),y=log(Aboveground)))+geom_point(size=1)+
+  geom_point(shape=20,size=2,colour="#2F4F4F")+
+  stat_smooth(method=lm,formula = y~poly(x,1),colour='#D2691E')+
+  stat_poly_eq(aes(label = paste(..eq.label..,..adj.rr.label.., ..p.value.label..,sep = '~~~')), formula = y ~ x, parse = T)#添加p值和R2
+  #xlab("PSR\n") +
+  #ylab("\nAboveground(log-transformed, g/kg)")
+p1
+pdf("PSR_Aboveground.pdf",height=8, width=8)
+p1
+dev.off()
